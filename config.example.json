@@ -1,0 +1,22 @@
+{
+  "default": "work",
+  "instances": {
+    "work": {
+      "server": "https://redmine.yourcompany.com",
+      "apiKey": "your-api-key-here",
+      "localDir": "~/redmine-issues/work",
+      "markup": "markdown",
+      "statusOrder": ["new", "confirmed", "assigned", "InProgress", "resolved", "verified", "deferred", "closed", "rejected", "cancelled", "reopened"],
+      "highlightRejected": true,
+      "highlightReopened": true,
+      "reopenedAsAssigned": false
+    },
+    "personal": {
+      "server": "https://redmine.personal.com",
+      "apiKey": "another-api-key",
+      "localDir": "~/redmine-issues/personal",
+      "targetVersionCfId": 3,
+      "markup": "textile"
+    }
+  }
+}
