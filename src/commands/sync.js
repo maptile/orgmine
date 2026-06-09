@@ -18,14 +18,14 @@ async function sync(config, options) {
       console.error(chalk.red('--project is required when filtering by --version'));
       process.exit(1);
     }
-    let version;
+    let versionObj;
     try {
-      version = await client.resolveVersionName(project, version);
+      versionObj = await client.resolveVersionName(project, version);
     } catch (e) {
       console.error(chalk.red(`Version lookup failed: ${e.message}`));
       process.exit(1);
     }
-    params.fixed_version_id = version.id;
+    params.fixed_version_id = versionObj.id;
   }
 
   process.stdout.write(chalk.dim('Fetching issue list…'));
