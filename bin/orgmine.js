@@ -9,6 +9,9 @@ const { fetch } = require('../src/commands/fetch');
 const { newIssue } = require('../src/commands/new');
 const { submit } = require('../src/commands/submit');
 const { fields } = require('../src/commands/fields');
+const { init } = require('../src/commands/init');
+const { sync } = require('../src/commands/sync');
+const { refresh } = require('../src/commands/refresh');
 
 program
   .name('orgmine')
@@ -59,12 +62,41 @@ program
 
 // ── submit ───────────────────────────────────────────────────────────────────
 program
-  .command('submit <file>')
-  .description('Submit a local org file to Redmine (create or update)')
+  .command('submit <file-or-id>')
+  .description('Submit to Redmine: pass a file path (direct) or an issue ID (finds the file and asks for confirmation)')
   .option('--force', 'Force submit even on conflict (overwrites remote changes)')
-  .action(async (file, options) => {
+  .action(async (fileOrId, options) => {
     const config = getConfig(program);
-    await submit(file, config, options);
+    await submit(fileOrId, config, options);
+  });
+
+// ── sync ─────────────────────────────────────────────────────────────────────
+program
+  .command('sync')
+  .description('Download all issues from Redmine to local org files')
+  .option('-p, --project <id_or_name>', 'Filter by project')
+  .option('-v, --target-version <version>', 'Filter by version name (requires --project)')
+  .option('--force', 'Overwrite existing local files')
+  .action(async (options) => {
+    const config = getConfig(program);
+    await sync(config, options);
+  });
+
+// ── refresh ───────────────────────────────────────────────────────────────────
+program
+  .command('refresh')
+  .description('Fetch statuses and priorities from Redmine and save to local cache')
+  .action(async () => {
+    const config = getConfig(program);
+    await refresh(config);
+  });
+
+// ── init ─────────────────────────────────────────────────────────────────────
+program
+  .command('init')
+  .description('Create the config file at ~/.config/orgmine/config.json (errors if it already exists)')
+  .action(() => {
+    init();
   });
 
 // ── fields ───────────────────────────────────────────────────────────────────

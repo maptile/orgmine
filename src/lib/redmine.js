@@ -66,6 +66,11 @@ class RedmineClient {
     return res.data.issue_statuses;
   }
 
+  async getPriorities() {
+    const res = await this._get('/enumerations/issue_priorities.json');
+    return res.data.issue_priorities;
+  }
+
   async getProjects() {
     const res = await this._get('/projects.json', { limit: 100 });
     return res.data.projects;
@@ -74,6 +79,18 @@ class RedmineClient {
   async getVersions(projectId) {
     const res = await this._get(`/projects/${projectId}/versions.json`);
     return res.data.versions;
+  }
+
+  async getProjectMembers(projectId) {
+    const res = await this._get(`/projects/${projectId}/memberships.json`, { limit: 100 });
+    return res.data.memberships
+      .filter(m => m.user)
+      .map(m => m.user);
+  }
+
+  async getIssueCategories(projectId) {
+    const res = await this._get(`/projects/${projectId}/issue_categories.json`);
+    return res.data.issue_categories;
   }
 
   async resolveVersionName(projectId, versionName) {

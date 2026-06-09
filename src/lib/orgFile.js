@@ -19,6 +19,8 @@ const META_KEYS = [
   'REDMINE_ASSIGNED_TO_ID',
   'REDMINE_VERSION',
   'REDMINE_VERSION_ID',
+  'REDMINE_CATEGORY',
+  'REDMINE_CATEGORY_ID',
   'REDMINE_MARKUP',
   'REDMINE_LOCK_VERSION',
   'REDMINE_UPDATED_ON',
@@ -147,6 +149,8 @@ function issueToOrg(issue, instanceName, markup) {
     REDMINE_ASSIGNED_TO_ID: String(issue.assigned_to?.id || ''),
     REDMINE_VERSION: issue.fixed_version?.name || '',
     REDMINE_VERSION_ID: String(issue.fixed_version?.id || ''),
+    REDMINE_CATEGORY: issue.category?.name || '',
+    REDMINE_CATEGORY_ID: String(issue.category?.id || ''),
     REDMINE_MARKUP: markup || 'textile',
     REDMINE_LOCK_VERSION: String(issue.lock_version ?? ''),
     REDMINE_UPDATED_ON: issue.updated_on || '',
@@ -170,6 +174,7 @@ function orgToPayload(meta, description) {
   if (meta.REDMINE_ASSIGNED_TO_ID) payload.assigned_to_id = Number(meta.REDMINE_ASSIGNED_TO_ID) || null;
   if (meta.REDMINE_PROJECT_ID) payload.project_id = Number(meta.REDMINE_PROJECT_ID);
   if (meta.REDMINE_VERSION_ID) payload.fixed_version_id = Number(meta.REDMINE_VERSION_ID);
+  if (meta.REDMINE_CATEGORY_ID) payload.category_id = Number(meta.REDMINE_CATEGORY_ID);
 
   // lock_version enables conflict detection on the server side; omitted on new issues
   if (meta.REDMINE_LOCK_VERSION !== '' && meta.REDMINE_LOCK_VERSION != null) {
@@ -190,6 +195,38 @@ function issueFilePath(localDir, projectName, issueId, title) {
 }
 
 /**
+ * Search localDir recursively for files whose name starts with "<issueId>-".
+ * Returns an array of matching absolute paths.
+ */
+function findFileById(localDir, issueId) {
+  const prefix = `${issueId}-`;
+  const results = [];
+
+  function scan(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (_) {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        scan(path.join(dir, entry.name));
+      } else if (
+        entry.isFile() &&
+        entry.name.startsWith(prefix) &&
+        entry.name.endsWith('.org')
+      ) {
+        results.push(path.join(dir, entry.name));
+      }
+    }
+  }
+
+  scan(localDir);
+  return results;
+}
+
+/**
  * Build the local file path for a new draft: localDir/_drafts/new-<timestamp>.org
  */
 function draftFilePath(localDir) {
@@ -200,8 +237,9 @@ function draftFilePath(localDir) {
 function slugify(str) {
   return (str || '')
     .toLowerCase()
-    .replace(/[^\w\s-]/g, '')
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .replace(/[\s_]+/g, '-')
+    .replace(/-{2,}/g, '-')
     .replace(/^-+|-+$/g, '');
 }
 
@@ -211,5 +249,6 @@ module.exports = {
   issueToOrg,
   orgToPayload,
   issueFilePath,
+  findFileById,
   draftFilePath,
 };

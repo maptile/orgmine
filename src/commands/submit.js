@@ -4,10 +4,18 @@ const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 const { RedmineClient, ConflictError } = require('../lib/redmine');
-const { readOrgFile, writeOrgFile, orgToPayload, issueFilePath } = require('../lib/orgFile');
+const { readOrgFile, writeOrgFile, orgToPayload, issueFilePath, findFileById } = require('../lib/orgFile');
 const { loadConfig } = require('../lib/config');
+const { promptMissingFields } = require('../lib/fieldSelector');
+const { ask } = require('../lib/prompt');
+const { getInstanceCache, isStale, validateMeta } = require('../lib/cache');
 
-async function submit(filePath, cmdConfig, options) {
+async function submit(fileOrId, cmdConfig, options) {
+  const isId = /^\d+$/.test(fileOrId);
+
+  // ── resolve file path (no I/O yet) ────────────────────────────────────────
+  const filePath = isId ? findById(fileOrId, cmdConfig) : fileOrId;
+
   if (!fs.existsSync(filePath)) {
     console.error(chalk.red(`File not found: ${filePath}`));
     process.exit(1);
@@ -15,13 +23,12 @@ async function submit(filePath, cmdConfig, options) {
 
   const { meta, description } = readOrgFile(filePath);
 
-  // Prefer the instance from CLI flag; fall back to the one stored in the file
+  // ── load full config ──────────────────────────────────────────────────────
   const instanceName = cmdConfig.instanceName || meta.REDMINE_INSTANCE;
   if (!instanceName) {
     console.error(chalk.red('Cannot determine target instance. Set #+REDMINE_INSTANCE in the file or use -i <instance>'));
     process.exit(1);
   }
-
   const config = instanceName !== cmdConfig.instanceName
     ? loadConfig(instanceName, {})
     : cmdConfig;
@@ -31,9 +38,48 @@ async function submit(filePath, cmdConfig, options) {
     process.exit(1);
   }
 
+  // ── stale cache warning ───────────────────────────────────────────────────
+  const instanceCache = getInstanceCache(config.instanceName);
+  if (isStale(instanceCache)) {
+    console.warn(chalk.yellow('⚠  Lookup cache is missing or older than 1 week. Run: orgmine refresh'));
+  }
+
+  // ── validate fields ───────────────────────────────────────────────────────
+  const validationErrors = validateMeta(meta, instanceCache, config.categories);
+
+  // ── for ID input: show file info ─────────────────────────────────────────
+  if (isId) {
+    console.log(`  File:    ${filePath}`);
+    console.log(`  Title:   ${meta.TITLE}`);
+    console.log(`  Status:  ${meta.REDMINE_STATUS || '—'}  Priority: ${meta.REDMINE_PRIORITY || '—'}`);
+    console.log('');
+  }
+
+  // ── block on validation errors (both modes) ───────────────────────────────
+  if (validationErrors.length > 0) {
+    validationErrors.forEach(e => console.error(chalk.red(`✗ ${e}`)));
+    process.exit(1);
+  }
+
+  // ── confirmation (ID mode only) ───────────────────────────────────────────
+  if (isId) {
+    const answer = await ask('Submit? [y/N] ');
+    if (answer.toLowerCase() !== 'y') {
+      console.log('Cancelled');
+      process.exit(0);
+    }
+  }
+
+  // ── prompt for empty required fields ─────────────────────────────────────
   const client = new RedmineClient(config);
   const issueId = meta.REDMINE_ID;
   const isNew = !issueId;
+
+  const projectId = meta.REDMINE_PROJECT_ID || meta.REDMINE_PROJECT;
+  if (projectId) {
+    const fieldUpdates = await promptMissingFields(client, projectId, meta, config);
+    Object.assign(meta, fieldUpdates);
+  }
 
   const payload = orgToPayload(meta, description);
 
@@ -42,6 +88,22 @@ async function submit(filePath, cmdConfig, options) {
   } else {
     await updateIssue(client, config, filePath, meta, description, payload, issueId, options);
   }
+}
+
+// Find file by issue ID or exit with an error message.
+function findById(issueId, config) {
+  const matches = findFileById(config.localDir, issueId);
+  if (matches.length === 0) {
+    console.error(chalk.red(`No local file found for issue #${issueId}`));
+    console.error(chalk.dim(`Fetch it first: orgmine fetch ${issueId}`));
+    process.exit(1);
+  }
+  if (matches.length > 1) {
+    console.error(chalk.red(`Multiple files found for issue #${issueId}:`));
+    matches.forEach(f => console.error(`  ${f}`));
+    process.exit(1);
+  }
+  return matches[0];
 }
 
 async function createIssue(client, config, filePath, meta, description, payload) {
@@ -110,23 +172,22 @@ async function updateIssue(client, config, filePath, meta, description, payload,
     process.exit(1);
   }
 
-  // Refresh lock_version from the server so the next submit won't conflict.
-  // Only the network call is non-fatal; a write failure is a real error.
+  // Refresh lock_version from the server, then do a single write that includes
+  // both the user's field selections and the updated server metadata.
   let latest;
   try {
     latest = await client.getIssue(issueId);
   } catch (_) {
     console.warn(chalk.yellow('Warning: could not refresh lock_version — next submit may report a conflict'));
-    latest = null;
   }
-  if (latest) {
-    const updatedMeta = {
-      ...meta,
+
+  writeOrgFile(filePath, {
+    ...meta,
+    ...(latest ? {
       REDMINE_LOCK_VERSION: String(latest.lock_version ?? ''),
       REDMINE_UPDATED_ON: latest.updated_on || '',
-    };
-    writeOrgFile(filePath, updatedMeta, description);
-  }
+    } : {}),
+  }, description);
 
   console.log(chalk.green(`✓ Issue #${issueId} updated`));
 }

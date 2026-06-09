@@ -60,11 +60,10 @@ npm install -g .   # makes the `orgmine` command available globally
 Copy the example config and edit it:
 
 ```bash
-mkdir -p ~/.redmine
-cp config.example.json ~/.redmine/config.json
+orgmine init
 ```
 
-`~/.redmine/config.json`:
+`~/.config/orgmine/config.json`:
 
 ```json
 {
@@ -94,6 +93,7 @@ cp config.example.json ~/.redmine/config.json
 | `highlightRejected` | no | Highlight rejected issues in red (default `false`) |
 | `highlightReopened` | no | Highlight reopened issues in red (default `false`) |
 | `reopenedAsAssigned` | no | Group reopened issues under Assigned (default `false`) |
+| `templates` | no | Map of issue type → template org file path. Supported keys: `defect`, `feature`. The file is a normal org file — its title, status, priority, and description are used as the draft's starting content. Paths support `~/`. |
 
 All fields can be overridden per-command with CLI options (see below). If you supply `--server`, `--api-key`, and `--local-dir` on the command line, the config file is not required.
 
@@ -134,7 +134,9 @@ Saves to `<localDir>/<project>/<id>-<slug>.org`. If the file already exists it i
 orgmine new -p myproject -t "Fix login timeout" -v "Sprint 4"
 ```
 
-Creates a draft in `<localDir>/_drafts/new-<timestamp>.org`. Open the file in Emacs, fill in the description, then submit.
+Prompts for project (if `-p` is not supplied) and issue type (`defect` or `feature`), then creates a draft in `<localDir>/_drafts/new-<timestamp>.org`.
+If a template file is configured for the chosen type it is used as the initial description.
+Open the file in Emacs, fill in the description, then submit.
 
 ### `submit` — push a local file to Redmine
 

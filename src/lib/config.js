@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const CONFIG_PATH = path.join(os.homedir(), '.redmine', 'config.json');
+const CONFIG_PATH = path.join(os.homedir(), '.config', 'orgmine', 'config.json');
 
 function loadConfigFile() {
   if (!fs.existsSync(CONFIG_PATH)) {
@@ -79,4 +79,4 @@ function expandHome(p) {
   return p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p;
 }
 
-module.exports = { loadConfig, listInstances, CONFIG_PATH };
+module.exports = { loadConfig, listInstances, expandHome, CONFIG_PATH };

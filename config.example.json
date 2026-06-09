@@ -9,7 +9,15 @@
       "statusOrder": ["new", "confirmed", "assigned", "InProgress", "resolved", "verified", "deferred", "closed", "rejected", "cancelled", "reopened"],
       "highlightRejected": true,
       "highlightReopened": true,
-      "reopenedAsAssigned": false
+      "reopenedAsAssigned": false,
+      "templates": {
+        "defect": "~/.config/orgmine/templates/defect.org",
+        "feature": "~/.config/orgmine/templates/feature.org"
+      },
+      "categories": [
+        { "id": 1, "name": "UI" },
+        { "id": 2, "name": "Backend" }
+      ]
     },
     "personal": {
       "server": "https://redmine.personal.com",
