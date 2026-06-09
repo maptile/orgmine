@@ -4,22 +4,18 @@ A local-first Redmine issue manager for Emacs. Issues are stored as org-mode fil
 
 ## How it works
 
-Each issue is stored as a `.org` file. Metadata (ID, status, priority, version, etc.) is kept in `#+KEYWORD` headers at the top of the file. The description is stored inside a `#+BEGIN_SRC textile` (or `markdown`) block so Emacs provides proper syntax highlighting.
+Each issue is stored as a `.org` file. Metadata (ID, status, priority, version, etc.) is kept in `#+KEYWORD` headers at the top of the file — names only, no numeric IDs. The description is stored inside a `#+BEGIN_SRC textile` (or `markdown`) block so Emacs provides proper syntax highlighting.
 
 ```org
 #+TITLE: Fix login timeout bug
 #+REDMINE_INSTANCE: work
 #+REDMINE_ID: 234
 #+REDMINE_PROJECT: my-project
-#+REDMINE_PROJECT_ID: 3
 #+REDMINE_STATUS: New
-#+REDMINE_STATUS_ID: 1
 #+REDMINE_PRIORITY: High
-#+REDMINE_PRIORITY_ID: 3
 #+REDMINE_ASSIGNED_TO: Jane
-#+REDMINE_ASSIGNED_TO_ID: 7
 #+REDMINE_VERSION: Sprint 4
-#+REDMINE_VERSION_ID: 12
+#+REDMINE_CATEGORY: Backend
 #+REDMINE_MARKUP: textile
 #+REDMINE_LOCK_VERSION: 2
 #+REDMINE_UPDATED_ON: 2026-06-08T10:00:00Z
@@ -38,7 +34,7 @@ Each issue is stored as a `.org` file. Metadata (ID, status, priority, version, 
 #+END_SRC
 ```
 
-Edit conflict detection relies on Redmine's built-in `lock_version` field. If someone else updates the issue between your fetch and your submit, Redmine returns a 409 and `orgmine` tells you exactly what to do.
+When submitting, field names are resolved to numeric IDs from the local cache (see `refresh`). Edit conflict detection relies on Redmine's built-in `lock_version` field. If someone else updates the issue between your fetch and your submit, Redmine returns a 409 and `orgmine` tells you exactly what to do.
 
 ## Requirements
 
@@ -57,7 +53,7 @@ npm install -g .   # makes the `orgmine` command available globally
 
 ## Configuration
 
-Copy the example config and edit it:
+Create the config file:
 
 ```bash
 orgmine init
@@ -77,7 +73,15 @@ orgmine init
       "statusOrder": ["new", "confirmed", "assigned", "InProgress", "resolved", "verified", "deferred", "closed", "rejected", "cancelled", "reopened"],
       "highlightRejected": true,
       "highlightReopened": true,
-      "reopenedAsAssigned": false
+      "reopenedAsAssigned": false,
+      "categories": [
+        { "id": 1, "name": "UI" },
+        { "id": 2, "name": "Backend" }
+      ],
+      "templates": {
+        "defect": "~/.config/orgmine/templates/defect.org",
+        "feature": "~/.config/orgmine/templates/feature.org"
+      }
     }
   }
 }
@@ -93,11 +97,21 @@ orgmine init
 | `highlightRejected` | no | Highlight rejected issues in red (default `false`) |
 | `highlightReopened` | no | Highlight reopened issues in red (default `false`) |
 | `reopenedAsAssigned` | no | Group reopened issues under Assigned (default `false`) |
-| `templates` | no | Map of issue type → template org file path. Supported keys: `defect`, `feature`. The file is a normal org file — its title, status, priority, and description are used as the draft's starting content. Paths support `~/`. |
+| `categories` | no | Static list of `{id, name}` pairs used when the API returns 403 for categories |
+| `templates` | no | Map of issue type → template org file path. Supported keys: `defect`, `feature`. Paths support `~/`. |
 
 All fields can be overridden per-command with CLI options (see below). If you supply `--server`, `--api-key`, and `--local-dir` on the command line, the config file is not required.
 
 ## Commands
+
+### `refresh` — update local lookup cache
+
+```bash
+orgmine refresh
+orgmine -i personal refresh
+```
+
+Fetches statuses, priorities, projects, and per-project members and versions from Redmine and saves them to `~/.config/orgmine/cache.json`. Run this once after setup, and again whenever your Redmine configuration changes. `submit` warns you if the cache is older than one week.
 
 ### `list` — browse issues grouped by status
 
@@ -112,7 +126,7 @@ Options:
 | Flag | Description |
 |---|---|
 | `-p, --project` | Filter by project name or identifier |
-| `-v, --target-version` | Filter by version name (requires `--project`) |
+| `-v, --version` | Filter by version name (requires `--project`) |
 | `--highlight-rejected` / `--no-highlight-rejected` | Override config |
 | `--highlight-reopened` / `--no-highlight-reopened` | Override config |
 | `--reopen-as-assigned` / `--no-reopen-as-assigned` | Override config |
@@ -128,30 +142,44 @@ orgmine -i personal fetch 99
 
 Saves to `<localDir>/<project>/<id>-<slug>.org`. If the file already exists it is overwritten (this is how you refresh after a conflict).
 
+### `sync` — download all issues
+
+```bash
+orgmine sync
+orgmine sync -p myproject
+orgmine sync -p myproject -v "Sprint 4"
+orgmine sync --force   # overwrite existing local files
+```
+
+Downloads all issues (all statuses) to local org files. Skips files that already exist unless `--force` is passed.
+
 ### `new` — create a local draft
 
 ```bash
 orgmine new -p myproject -t "Fix login timeout" -v "Sprint 4"
 ```
 
-Prompts for project (if `-p` is not supplied) and issue type (`defect` or `feature`), then creates a draft in `<localDir>/_drafts/new-<timestamp>.org`.
-If a template file is configured for the chosen type it is used as the initial description.
-Open the file in Emacs, fill in the description, then submit.
+Prompts interactively for:
+- **Project** — if `-p` is not supplied
+- **Type** — `defect` or `feature` (selects the template)
+- **Assignee**, **Category**, **Version** — fetched from Redmine; empty fields only
+
+If a template org file is configured for the chosen type, its title, status, priority, and description are used as the starting content. Open the draft in Emacs, fill in the description, then submit.
 
 ### `submit` — push a local file to Redmine
 
 ```bash
-orgmine submit ~/redmine-issues/work/myproject/234-fix-login.org
-orgmine submit ./draft.org --force   # force-overwrite on conflict
+orgmine submit 234                  # find file by issue ID, show diff, confirm
+orgmine submit ./path/to/file.org   # submit directly, still confirms
+orgmine submit 234 --force          # skip conflict detection
 ```
+
+Both input forms ask for confirmation. When updating an existing issue, `submit` first fetches the current server state and shows a diff so you can review what will change. If there are no changes, it exits without asking.
 
 - If `#+REDMINE_ID` is absent → creates a new issue, then renames the file with the assigned ID.
 - If `#+REDMINE_ID` is present → updates the existing issue using `lock_version` for conflict detection.
+- Field names (status, priority, etc.) are resolved to IDs from the local cache before submission.
 - On conflict: shows instructions to re-fetch or use `--force`.
-
-The instance to submit to is read from `#+REDMINE_INSTANCE` in the file, so you do not need to pass `-i` manually.
-
-After a successful update `lock_version` is refreshed automatically.
 
 ### `fields` — discover custom field IDs
 
@@ -159,7 +187,7 @@ After a successful update `lock_version` is refreshed automatically.
 orgmine fields 234
 ```
 
-Prints all custom fields on the given issue with their IDs. Useful for exploring what fields exist on your Redmine instance.
+Prints all custom fields on the given issue with their IDs.
 
 ## Global options
 

@@ -10,17 +10,11 @@ const META_KEYS = [
   'REDMINE_INSTANCE',
   'REDMINE_ID',
   'REDMINE_PROJECT',
-  'REDMINE_PROJECT_ID',
   'REDMINE_STATUS',
-  'REDMINE_STATUS_ID',
   'REDMINE_PRIORITY',
-  'REDMINE_PRIORITY_ID',
   'REDMINE_ASSIGNED_TO',
-  'REDMINE_ASSIGNED_TO_ID',
   'REDMINE_VERSION',
-  'REDMINE_VERSION_ID',
   'REDMINE_CATEGORY',
-  'REDMINE_CATEGORY_ID',
   'REDMINE_MARKUP',
   'REDMINE_LOCK_VERSION',
   'REDMINE_UPDATED_ON',
@@ -140,17 +134,11 @@ function issueToOrg(issue, instanceName, markup) {
     REDMINE_INSTANCE: instanceName,
     REDMINE_ID: String(issue.id),
     REDMINE_PROJECT: issue.project?.name || '',
-    REDMINE_PROJECT_ID: String(issue.project?.id || ''),
     REDMINE_STATUS: issue.status?.name || '',
-    REDMINE_STATUS_ID: String(issue.status?.id || ''),
     REDMINE_PRIORITY: issue.priority?.name || '',
-    REDMINE_PRIORITY_ID: String(issue.priority?.id || ''),
     REDMINE_ASSIGNED_TO: issue.assigned_to?.name || '',
-    REDMINE_ASSIGNED_TO_ID: String(issue.assigned_to?.id || ''),
     REDMINE_VERSION: issue.fixed_version?.name || '',
-    REDMINE_VERSION_ID: String(issue.fixed_version?.id || ''),
     REDMINE_CATEGORY: issue.category?.name || '',
-    REDMINE_CATEGORY_ID: String(issue.category?.id || ''),
     REDMINE_MARKUP: markup || 'textile',
     REDMINE_LOCK_VERSION: String(issue.lock_version ?? ''),
     REDMINE_UPDATED_ON: issue.updated_on || '',
@@ -163,18 +151,18 @@ function issueToOrg(issue, instanceName, markup) {
 /**
  * Convert org file meta + description into a Redmine API payload for PUT/POST.
  */
-function orgToPayload(meta, description) {
+function orgToPayload(meta, description, resolvedIds = {}) {
   const payload = {
     subject: meta.TITLE,
     description,
   };
 
-  if (meta.REDMINE_STATUS_ID) payload.status_id = Number(meta.REDMINE_STATUS_ID);
-  if (meta.REDMINE_PRIORITY_ID) payload.priority_id = Number(meta.REDMINE_PRIORITY_ID);
-  if (meta.REDMINE_ASSIGNED_TO_ID) payload.assigned_to_id = Number(meta.REDMINE_ASSIGNED_TO_ID) || null;
-  if (meta.REDMINE_PROJECT_ID) payload.project_id = Number(meta.REDMINE_PROJECT_ID);
-  if (meta.REDMINE_VERSION_ID) payload.fixed_version_id = Number(meta.REDMINE_VERSION_ID);
-  if (meta.REDMINE_CATEGORY_ID) payload.category_id = Number(meta.REDMINE_CATEGORY_ID);
+  if (resolvedIds.status_id != null)        payload.status_id        = resolvedIds.status_id;
+  if (resolvedIds.priority_id != null)      payload.priority_id      = resolvedIds.priority_id;
+  if (resolvedIds.assigned_to_id != null)   payload.assigned_to_id   = resolvedIds.assigned_to_id || null;
+  if (resolvedIds.project_id != null)       payload.project_id       = resolvedIds.project_id;
+  if (resolvedIds.fixed_version_id != null) payload.fixed_version_id = resolvedIds.fixed_version_id;
+  if (resolvedIds.category_id != null)      payload.category_id      = resolvedIds.category_id;
 
   // lock_version enables conflict detection on the server side; omitted on new issues
   if (meta.REDMINE_LOCK_VERSION !== '' && meta.REDMINE_LOCK_VERSION != null) {

@@ -11,21 +11,21 @@ const DEFAULT_STATUS_ORDER = [
 ];
 
 async function list(config, options) {
-  const { targetVersion, project } = options;
+  const { version, project } = options;
 
   const client = new RedmineClient(config);
 
   const params = {};
   if (project) params.project_id = project;
 
-  if (targetVersion) {
+  if (version) {
     if (!project) {
-      console.error(chalk.red('--project is required when filtering by --target-version'));
+      console.error(chalk.red('--project is required when filtering by --version'));
       process.exit(1);
     }
     let version;
     try {
-      version = await client.resolveVersionName(project, targetVersion);
+      version = await client.resolveVersionName(project, version);
     } catch (e) {
       console.error(chalk.red(`Version lookup failed: ${e.message}`));
       process.exit(1);
@@ -53,7 +53,7 @@ async function list(config, options) {
   const statusOrder = config.statusOrder || DEFAULT_STATUS_ORDER;
   const sortedGroups = sortGroups(groups, statusOrder);
 
-  const filterDesc = targetVersion ? `version = ${chalk.cyan(targetVersion)}` : 'all';
+  const filterDesc = version ? `version = ${chalk.cyan(version)}` : 'all';
   const projectDesc = project ? `  project: ${chalk.cyan(project)}` : '';
   console.log(chalk.bold(`\nInstance: ${config.instanceName}${projectDesc}  filter: ${filterDesc}`));
   console.log(chalk.bold(`${issues.length} issue(s)\n`));

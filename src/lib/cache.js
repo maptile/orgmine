@@ -37,66 +37,62 @@ function isStale(instanceCache) {
 }
 
 /**
- * Validate all ID/name fields in meta.
- *
- * instanceCache  — loaded from cache.json for this instance
- * configCategories — the `categories` array from config (may be undefined)
- *
- * Returns an array of error strings (empty = all valid).
+ * Validate that all name fields in meta exist in the cached lists.
+ * Returns an array of error strings; empty means all valid.
  * Fields whose list is absent from the cache are silently skipped.
  */
-function validateMeta(meta, instanceCache, configCategories) {
+function validateNames(meta, instanceCache, configCategories) {
   const errors = [];
-  const projectId = meta.REDMINE_PROJECT_ID;
+  const projectId = lookupProjectId(instanceCache, meta.REDMINE_PROJECT);
 
-  // ── global lookups ────────────────────────────────────────────────────────
-  checkField(errors, instanceCache?.statuses,
-    meta.REDMINE_STATUS_ID, meta.REDMINE_STATUS, 'status');
-
-  checkField(errors, instanceCache?.priorities,
-    meta.REDMINE_PRIORITY_ID, meta.REDMINE_PRIORITY, 'priority');
-
-  checkField(errors, instanceCache?.projects,
-    meta.REDMINE_PROJECT_ID, meta.REDMINE_PROJECT, 'project');
-
-  // ── per-project lookups ───────────────────────────────────────────────────
-  if (projectId) {
-    checkField(errors, instanceCache?.members?.[projectId],
-      meta.REDMINE_ASSIGNED_TO_ID, meta.REDMINE_ASSIGNED_TO, 'assigned_to');
-
-    checkField(errors, instanceCache?.versions?.[projectId],
-      meta.REDMINE_VERSION_ID, meta.REDMINE_VERSION, 'version');
-  }
-
-  // ── category from config ──────────────────────────────────────────────────
-  checkField(errors, configCategories,
-    meta.REDMINE_CATEGORY_ID, meta.REDMINE_CATEGORY, 'category');
+  checkName(errors, instanceCache?.statuses,              meta.REDMINE_STATUS,      'status');
+  checkName(errors, instanceCache?.priorities,            meta.REDMINE_PRIORITY,    'priority');
+  checkName(errors, instanceCache?.projects,              meta.REDMINE_PROJECT,     'project');
+  checkName(errors, instanceCache?.members?.[projectId],  meta.REDMINE_ASSIGNED_TO, 'assigned_to');
+  checkName(errors, instanceCache?.versions?.[projectId], meta.REDMINE_VERSION,     'version');
+  checkName(errors, configCategories,                     meta.REDMINE_CATEGORY,    'category');
 
   return errors;
 }
 
 /**
- * Check that:
- *  1. If id is set, it exists in list.
- *  2. If both id and name are set, they agree.
- *
- * list items must have { id: number, name: string }.
+ * Look up the numeric ID for each name field in meta using the cached lists.
+ * Returns a resolvedIds object suitable for passing to orgToPayload.
+ * Fields that are empty or whose list is absent from the cache are omitted.
  */
-function checkField(errors, list, id, name, label) {
-  if (!id && !name) return;
-  if (!list) return; // no cache data for this field — skip
+function resolveNames(meta, instanceCache, configCategories) {
+  const resolved = {};
+  const projectId = lookupProjectId(instanceCache, meta.REDMINE_PROJECT);
 
-  if (id) {
-    const found = list.find(item => item.id === Number(id));
-    if (!found) {
-      const available = list.map(item => `${item.id}=${item.name}`).join(', ');
-      errors.push(`Invalid ${label} ID "${id}". Available: ${available}`);
-      return; // skip name check when ID is already wrong
-    }
-    if (name && found.name !== name) {
-      errors.push(`${label} name "${name}" does not match ID ${id} (should be "${found.name}")`);
-    }
+  findId(instanceCache?.statuses,              meta.REDMINE_STATUS,      resolved, 'status_id');
+  findId(instanceCache?.priorities,            meta.REDMINE_PRIORITY,    resolved, 'priority_id');
+  findId(instanceCache?.projects,              meta.REDMINE_PROJECT,     resolved, 'project_id');
+  findId(instanceCache?.members?.[projectId],  meta.REDMINE_ASSIGNED_TO, resolved, 'assigned_to_id');
+  findId(instanceCache?.versions?.[projectId], meta.REDMINE_VERSION,     resolved, 'fixed_version_id');
+  findId(configCategories,                     meta.REDMINE_CATEGORY,    resolved, 'category_id');
+
+  return resolved;
+}
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+function lookupProjectId(instanceCache, projectName) {
+  if (!projectName || !instanceCache?.projects) return null;
+  return instanceCache.projects.find(p => p.name === projectName)?.id ?? null;
+}
+
+function checkName(errors, list, name, label) {
+  if (!name || !list) return;
+  if (!list.find(item => item.name === name)) {
+    const available = list.map(item => item.name).join(', ');
+    errors.push(`Unknown ${label} "${name}". Available: ${available}`);
   }
 }
 
-module.exports = { getInstanceCache, setInstanceCache, isStale, validateMeta, CACHE_PATH };
+function findId(list, name, resolved, key) {
+  if (!name || !list) return;
+  const found = list.find(item => item.name === name);
+  if (found) resolved[key] = found.id;
+}
+
+module.exports = { getInstanceCache, setInstanceCache, isStale, validateNames, resolveNames, CACHE_PATH };

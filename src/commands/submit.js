@@ -8,7 +8,8 @@ const { readOrgFile, writeOrgFile, orgToPayload, issueFilePath, findFileById } =
 const { loadConfig } = require('../lib/config');
 const { promptMissingFields } = require('../lib/fieldSelector');
 const { ask } = require('../lib/prompt');
-const { getInstanceCache, isStale, validateMeta } = require('../lib/cache');
+const { getInstanceCache, isStale, validateNames, resolveNames } = require('../lib/cache');
+const { showIssueDiff } = require('../lib/diff');
 
 async function submit(fileOrId, cmdConfig, options) {
   const isId = /^\d+$/.test(fileOrId);
@@ -44,25 +45,41 @@ async function submit(fileOrId, cmdConfig, options) {
     console.warn(chalk.yellow('⚠  Lookup cache is missing or older than 1 week. Run: orgmine refresh'));
   }
 
-  // ── validate fields ───────────────────────────────────────────────────────
-  const validationErrors = validateMeta(meta, instanceCache, config.categories);
-
-  // ── for ID input: show file info ─────────────────────────────────────────
-  if (isId) {
-    console.log(`  File:    ${filePath}`);
-    console.log(`  Title:   ${meta.TITLE}`);
-    console.log(`  Status:  ${meta.REDMINE_STATUS || '—'}  Priority: ${meta.REDMINE_PRIORITY || '—'}`);
-    console.log('');
-  }
-
-  // ── block on validation errors (both modes) ───────────────────────────────
+  // ── block on validation errors ────────────────────────────────────────────
+  const validationErrors = validateNames(meta, instanceCache, config.categories);
   if (validationErrors.length > 0) {
     validationErrors.forEach(e => console.error(chalk.red(`✗ ${e}`)));
     process.exit(1);
   }
 
-  // ── confirmation (ID mode only) ───────────────────────────────────────────
-  if (isId) {
+  // ── confirmation ──────────────────────────────────────────────────────────
+  const client = new RedmineClient(config);
+  const issueId = meta.REDMINE_ID;
+  const isNew = !issueId;
+
+  if (isNew) {
+    const answer = await ask(`Create new issue "${meta.TITLE}"? [y/N] `);
+    if (answer.toLowerCase() !== 'y') {
+      console.log('Cancelled');
+      process.exit(0);
+    }
+  } else {
+    console.log(chalk.dim(`Fetching #${issueId} from server…`));
+    let serverIssue = null;
+    try {
+      serverIssue = await client.getIssue(issueId);
+    } catch (e) {
+      console.warn(chalk.yellow(`Warning: could not fetch server state (${e.message})`));
+    }
+
+    if (serverIssue) {
+      const hasChanges = showIssueDiff(meta, description, serverIssue);
+      if (!hasChanges) {
+        console.log(chalk.dim('No changes — nothing to submit.'));
+        process.exit(0);
+      }
+    }
+
     const answer = await ask('Submit? [y/N] ');
     if (answer.toLowerCase() !== 'y') {
       console.log('Cancelled');
@@ -70,18 +87,15 @@ async function submit(fileOrId, cmdConfig, options) {
     }
   }
 
-  // ── prompt for empty required fields ─────────────────────────────────────
-  const client = new RedmineClient(config);
-  const issueId = meta.REDMINE_ID;
-  const isNew = !issueId;
-
-  const projectId = meta.REDMINE_PROJECT_ID || meta.REDMINE_PROJECT;
+  const projectId = meta.REDMINE_PROJECT;
   if (projectId) {
     const fieldUpdates = await promptMissingFields(client, projectId, meta, config);
     Object.assign(meta, fieldUpdates);
   }
 
-  const payload = orgToPayload(meta, description);
+  // Resolve names → numeric IDs for the API payload (after prompts fill any gaps)
+  const resolvedIds = resolveNames(meta, instanceCache, config.categories);
+  const payload = orgToPayload(meta, description, resolvedIds);
 
   if (isNew) {
     await createIssue(client, config, filePath, meta, description, payload);

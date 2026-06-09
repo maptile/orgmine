@@ -21,20 +21,17 @@ async function promptMissingFields(client, projectId, meta, config = {}) {
 }
 
 async function promptAssignee(client, projectId, meta, updates) {
-  if (meta.REDMINE_ASSIGNED_TO_ID) return;
+  if (meta.REDMINE_ASSIGNED_TO) return;
 
   const members = await fetchSafe(() => client.getProjectMembers(projectId), 'members');
   if (!members || members.length === 0) return;
 
   const selected = await askChoiceOrSkip('Assignee:', members, m => m.name);
-  if (selected) {
-    updates.REDMINE_ASSIGNED_TO = selected.name;
-    updates.REDMINE_ASSIGNED_TO_ID = String(selected.id);
-  }
+  if (selected) updates.REDMINE_ASSIGNED_TO = selected.name;
 }
 
 async function promptCategory(client, projectId, meta, updates, configCategories) {
-  if (meta.REDMINE_CATEGORY_ID) return;
+  if (meta.REDMINE_CATEGORY) return;
 
   let categories = await fetchSafe(() => client.getIssueCategories(projectId), 'categories');
 
@@ -46,14 +43,11 @@ async function promptCategory(client, projectId, meta, updates, configCategories
   if (categories.length === 0) return;
 
   const selected = await askChoiceOrSkip('Category:', categories, c => c.name);
-  if (selected) {
-    updates.REDMINE_CATEGORY = selected.name;
-    updates.REDMINE_CATEGORY_ID = String(selected.id);
-  }
+  if (selected) updates.REDMINE_CATEGORY = selected.name;
 }
 
 async function promptVersion(client, projectId, meta, updates) {
-  if (meta.REDMINE_VERSION_ID) return;
+  if (meta.REDMINE_VERSION) return;
 
   const versions = await fetchSafe(() => client.getVersions(projectId), 'versions');
   if (!versions || versions.length === 0) return;
@@ -64,11 +58,8 @@ async function promptVersion(client, projectId, meta, updates) {
 
   if (open.length === 0) return;
 
-  const selected = await askChoiceOrSkip('Target version:', open, v => v.name);
-  if (selected) {
-    updates.REDMINE_VERSION = selected.name;
-    updates.REDMINE_VERSION_ID = String(selected.id);
-  }
+  const selected = await askChoiceOrSkip('Version:', open, v => v.name);
+  if (selected) updates.REDMINE_VERSION = selected.name;
 }
 
 /**

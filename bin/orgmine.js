@@ -27,7 +27,7 @@ program
   .command('list')
   .description('List issues grouped by status')
   .option('-p, --project <id_or_name>', 'Filter by project')
-  .option('-v, --target-version <version>', 'Filter by version name')
+  .option('-v, --version <name>', 'Filter by version name')
   .option('--highlight-rejected', 'Highlight rejected issues in red (overrides config)')
   .option('--no-highlight-rejected', 'Do not highlight rejected issues (overrides config)')
   .option('--highlight-reopened', 'Highlight reopened issues in red (overrides config)')
@@ -54,7 +54,7 @@ program
   .description('Create a new issue draft locally')
   .option('-p, --project <name>', 'Project name or identifier')
   .option('-t, --title <title>', 'Issue title')
-  .option('-v, --target-version <version>', 'TargetVersion value')
+  .option('-v, --version <name>', 'Version name')
   .action(async (options) => {
     const config = getConfig(program);
     await newIssue(config, options);
@@ -75,7 +75,7 @@ program
   .command('sync')
   .description('Download all issues from Redmine to local org files')
   .option('-p, --project <id_or_name>', 'Filter by project')
-  .option('-v, --target-version <version>', 'Filter by version name (requires --project)')
+  .option('-v, --version <name>', 'Filter by version name (requires --project)')
   .option('--force', 'Overwrite existing local files')
   .action(async (options) => {
     const config = getConfig(program);
@@ -85,7 +85,7 @@ program
 // ── refresh ───────────────────────────────────────────────────────────────────
 program
   .command('refresh')
-  .description('Fetch statuses and priorities from Redmine and save to local cache')
+  .description('Fetch statuses, priorities, projects, members and versions from Redmine and save to local cache')
   .action(async () => {
     const config = getConfig(program);
     await refresh(config);
@@ -102,7 +102,7 @@ program
 // ── fields ───────────────────────────────────────────────────────────────────
 program
   .command('fields <id>')
-  .description('List all custom fields on an issue (useful for finding targetVersionCfId)')
+  .description('List all custom fields on an issue')
   .action(async (id) => {
     const config = getConfig(program);
     await fields(id, config);

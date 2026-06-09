@@ -6,21 +6,21 @@ const { RedmineClient } = require('../lib/redmine');
 const { issueToOrg, writeOrgFile, issueFilePath } = require('../lib/orgFile');
 
 async function sync(config, options) {
-  const { project, targetVersion, force } = options;
+  const { project, version, force } = options;
 
   const client = new RedmineClient(config);
 
   const params = { status_id: '*' };
   if (project) params.project_id = project;
 
-  if (targetVersion) {
+  if (version) {
     if (!project) {
-      console.error(chalk.red('--project is required when filtering by --target-version'));
+      console.error(chalk.red('--project is required when filtering by --version'));
       process.exit(1);
     }
     let version;
     try {
-      version = await client.resolveVersionName(project, targetVersion);
+      version = await client.resolveVersionName(project, version);
     } catch (e) {
       console.error(chalk.red(`Version lookup failed: ${e.message}`));
       process.exit(1);

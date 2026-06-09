@@ -36,9 +36,8 @@ async function newIssue(config, options) {
     REDMINE_MARKUP: markup,
   };
 
-  // CLI --target-version overrides the template value
-  if (options.targetVersion) {
-    meta.REDMINE_VERSION = options.targetVersion;
+  if (options.version) {
+    meta.REDMINE_VERSION = options.version;
     meta.REDMINE_VERSION_ID = '';
   }
 
