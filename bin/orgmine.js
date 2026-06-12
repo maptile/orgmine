@@ -76,7 +76,7 @@ program
   .description('Download all issues from Redmine to local org files')
   .option('-p, --project <id_or_name>', 'Filter by project')
   .option('-v, --version <name>', 'Filter by version name (requires --project)')
-  .option('--force', 'Overwrite existing local files')
+  .option('--force', 'Show differences and accept all remote overwrites without prompting')
   .action(async (options) => {
     const config = getConfig(program);
     await sync(config, options);

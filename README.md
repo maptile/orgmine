@@ -34,7 +34,10 @@ Each issue is stored as a `.org` file. Metadata (ID, status, priority, version, 
 #+END_SRC
 ```
 
-When submitting, field names are resolved to numeric IDs from the local cache (see `refresh`). Edit conflict detection relies on Redmine's built-in `lock_version` field. If someone else updates the issue between your fetch and your submit, Redmine returns a 409 and `orgmine` tells you exactly what to do.
+When submitting, field names are resolved to numeric IDs from the local cache
+(see `refresh`). `submit` compares the local file with the latest remote issue
+before confirmation. Edit conflict detection then uses Redmine's built-in
+`lock_version` field to catch changes made after that comparison.
 
 ## Requirements
 
@@ -71,6 +74,19 @@ orgmine init
       "localDir": "~/redmine-issues/work",
       "markup": "textile",
       "statusOrder": ["new", "confirmed", "assigned", "InProgress", "resolved", "verified", "deferred", "closed", "rejected", "cancelled", "reopened"],
+      "statusTransitions": {
+        "Feature": {
+          "New": ["Confirmed"],
+          "Confirmed": ["Assigned"],
+          "Assigned": ["InProgress"],
+          "InProgress": ["Resolved"]
+        },
+        "Defect": {
+          "New": ["Assigned"],
+          "Assigned": ["InProgress"],
+          "InProgress": ["Resolved"]
+        }
+      },
       "highlightRejected": true,
       "highlightReopened": true,
       "reopenedAsAssigned": false,
@@ -94,6 +110,7 @@ orgmine init
 | `localDir` | yes | Directory where org files are stored |
 | `markup` | no | `textile` (default) or `markdown` |
 | `statusOrder` | no | Display order for status groups in `list` |
+| `statusTransitions` | no | Allowed status transitions grouped by Redmine tracker name; used to perform multi-step status changes |
 | `highlightRejected` | no | Highlight rejected issues in red (default `false`) |
 | `highlightReopened` | no | Highlight reopened issues in red (default `false`) |
 | `reopenedAsAssigned` | no | Group reopened issues under Assigned (default `false`) |
@@ -140,7 +157,10 @@ orgmine fetch 234
 orgmine -i personal fetch 99
 ```
 
-Saves to `<localDir>/<project>/<id>-<slug>.org`. If the file already exists it is overwritten (this is how you refresh after a conflict).
+Saves to `<localDir>/<project>/<id>-<slug>.org`. If a local file for the issue
+already exists, `fetch` compares it with Redmine, shows changes in the
+`local → remote` direction, and asks before overwriting. An unchanged file is
+not rewritten.
 
 ### `sync` — download all issues
 
@@ -148,10 +168,15 @@ Saves to `<localDir>/<project>/<id>-<slug>.org`. If the file already exists it i
 orgmine sync
 orgmine sync -p myproject
 orgmine sync -p myproject -v "Sprint 4"
-orgmine sync --force   # overwrite existing local files
+orgmine sync --force   # show diffs and accept all remote overwrites
 ```
 
-Downloads all issues (all statuses) to local org files. Skips files that already exist unless `--force` is passed.
+Downloads all issues (all statuses) to local org files. Existing files are
+compared with the complete remote issue. For each difference, `sync` pauses,
+shows the `local → remote` changes, and asks before overwriting. Declining keeps
+that local file unchanged and continues with the remaining issues. `--force`
+still shows each difference but treats the command option as approval to
+overwrite without an additional prompt.
 
 ### `new` — create a local draft
 
@@ -174,12 +199,37 @@ orgmine submit ./path/to/file.org   # submit directly, still confirms
 orgmine submit 234 --force          # skip conflict detection
 ```
 
-Both input forms ask for confirmation. When updating an existing issue, `submit` first fetches the current server state and shows a diff so you can review what will change. If there are no changes, it exits without asking.
+Both input forms ask for confirmation. When updating an existing issue,
+`submit` first fetches the current server state, resolves any prompted fields,
+and then shows the final diff so you can review exactly what will change. If
+the remote issue cannot be fetched, submission stops. If there are no changes,
+it exits without asking.
 
 - If `#+REDMINE_ID` is absent → creates a new issue, then renames the file with the assigned ID.
 - If `#+REDMINE_ID` is present → updates the existing issue using `lock_version` for conflict detection.
 - Field names (status, priority, etc.) are resolved to IDs from the local cache before submission.
+- If the issue tracker has a `statusTransitions` entry, `submit` finds the shortest configured path and performs each required status change before submitting the complete final update.
 - On conflict: shows instructions to re-fetch or use `--force`.
+
+`statusTransitions` keys and status names are matched case-insensitively.
+Simple singular/plural tracker names also match, so `Feature` matches
+`Features` and `Defect` matches `Defects`. Each status maps to all statuses
+that can be reached in one Redmine update:
+
+```json
+"Assigned": ["InProgress", "Resolved", "Rejected"]
+```
+
+When changing a Feature from `New` to `Resolved`, the example configuration
+submits `New → Confirmed → Assigned → InProgress → Resolved`. Intermediate
+updates contain only the status; the last update contains all edited fields.
+Each step creates a separate Redmine history entry and may send a notification.
+Redmine does not provide a transaction for these requests, so if a later step
+fails, earlier successful status changes remain on the issue.
+
+If a tracker is configured but no path reaches the requested status, `submit`
+stops before changing anything. If a tracker has no configuration, the original
+single-update behavior is used.
 
 ### `fields` — discover custom field IDs
 
@@ -232,4 +282,6 @@ For Markdown, `markdown-mode` is already widely available.
 
 ## Credits
 
-This project was written by [Claude](https://claude.ai) (claude-sonnet-4-6), Anthropic's AI assistant.
+This project was developed collaboratively with
+[Claude](https://claude.ai) (claude-sonnet-4-6), Anthropic's AI assistant,
+and [OpenAI Codex](https://openai.com/codex/).

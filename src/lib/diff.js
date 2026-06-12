@@ -5,15 +5,12 @@ const chalk = require('chalk');
 const CONTEXT_LINES = 2;
 
 /**
- * Display a before/after summary of what will change on the server.
- * serverIssue is the raw Redmine API issue object.
+ * Display a before/after summary. target="server" previews submit;
+ * target="local" previews fetch/sync overwrite.
  */
-function showIssueDiff(meta, description, serverIssue) {
-  const fieldRows = buildFieldDiff(meta, serverIssue);
-  const descDiff  = buildDescDiff(description, serverIssue.description || '');
-
-  const hasFieldChanges = fieldRows.some(r => r.changed);
-  const hasDescChanges  = descDiff.length > 0;
+function showIssueDiff(meta, description, serverIssue, options = {}) {
+  const { fieldRows, descDiff, hasFieldChanges, hasDescChanges } =
+    buildIssueDiff(meta, description, serverIssue, options);
 
   if (!hasFieldChanges && !hasDescChanges) {
     return false;
@@ -21,12 +18,12 @@ function showIssueDiff(meta, description, serverIssue) {
 
   if (hasFieldChanges) {
     console.log(chalk.bold('Fields:'));
-    for (const { label, server, local, changed } of fieldRows) {
+    for (const { label, before, after, changed } of fieldRows) {
       const tag = label.padEnd(10);
       if (changed) {
-        console.log(`  ${tag}  ${chalk.red(server || '(empty)')}  →  ${chalk.green(local || '(empty)')}`);
+        console.log(`  ${tag}  ${chalk.red(before || '(empty)')}  →  ${chalk.green(after || '(empty)')}`);
       } else {
-        console.log(chalk.dim(`  ${tag}  ${local || '(empty)'}`));
+        console.log(chalk.dim(`  ${tag}  ${after || '(empty)'}`));
       }
     }
   }
@@ -40,11 +37,36 @@ function showIssueDiff(meta, description, serverIssue) {
   return true;
 }
 
+function buildIssueDiff(meta, description, serverIssue, options = {}) {
+  const target = options.target || 'server';
+  const fields = buildFieldDiff(meta, serverIssue);
+  const fieldRows = fields.map(row => ({
+    ...row,
+    before: target === 'local' ? row.local : row.server,
+    after: target === 'local' ? row.server : row.local,
+  }));
+  const beforeDesc = target === 'local'
+    ? description
+    : serverIssue.description || '';
+  const afterDesc = target === 'local'
+    ? serverIssue.description || ''
+    : description;
+  const descDiff = buildDescDiff(beforeDesc, afterDesc);
+
+  return {
+    fieldRows,
+    descDiff,
+    hasFieldChanges: fieldRows.some(row => row.changed),
+    hasDescChanges: descDiff.length > 0,
+  };
+}
+
 // ── field comparison ──────────────────────────────────────────────────────────
 
 function buildFieldDiff(meta, issue) {
   const rows = [
-    { label: 'title',    local: meta.REDMINE_STATUS,      server: issue.subject },
+    { label: 'title',    local: meta.TITLE,               server: issue.subject },
+    { label: 'project',  local: meta.REDMINE_PROJECT,     server: issue.project?.name       || '' },
     { label: 'status',   local: meta.REDMINE_STATUS,      server: issue.status?.name        || '' },
     { label: 'priority', local: meta.REDMINE_PRIORITY,    server: issue.priority?.name      || '' },
     { label: 'assignee', local: meta.REDMINE_ASSIGNED_TO, server: issue.assigned_to?.name   || '' },
@@ -52,21 +74,18 @@ function buildFieldDiff(meta, issue) {
     { label: 'category', local: meta.REDMINE_CATEGORY,    server: issue.category?.name      || '' },
   ];
 
-  // Fix title row
-  rows[0] = { label: 'title', local: meta.TITLE, server: issue.subject };
-
   return rows.map(r => ({ ...r, changed: (r.local || '') !== (r.server || '') }));
 }
 
 // ── description diff ──────────────────────────────────────────────────────────
 
-function buildDescDiff(localDesc, serverDesc) {
-  const localLines  = normalizeDesc(localDesc).split('\n');
-  const serverLines = normalizeDesc(serverDesc).split('\n');
+function buildDescDiff(beforeDesc, afterDesc) {
+  const beforeLines = normalizeDesc(beforeDesc).split('\n');
+  const afterLines = normalizeDesc(afterDesc).split('\n');
 
-  if (localLines.join('\n') === serverLines.join('\n')) return [];
+  if (beforeLines.join('\n') === afterLines.join('\n')) return [];
 
-  const hunks = lcs(serverLines, localLines);
+  const hunks = lcs(beforeLines, afterLines);
   return renderContextDiff(hunks);
 }
 
@@ -134,4 +153,4 @@ function renderContextDiff(hunks) {
   return lines;
 }
 
-module.exports = { showIssueDiff };
+module.exports = { buildIssueDiff, showIssueDiff };

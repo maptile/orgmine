@@ -17,6 +17,19 @@ const TEMPLATE = {
         'new', 'confirmed', 'assigned', 'InProgress', 'resolved',
         'verified', 'deferred', 'closed', 'rejected', 'cancelled', 'reopened',
       ],
+      statusTransitions: {
+        Feature: {
+          New: ['Confirmed'],
+          Confirmed: ['Assigned'],
+          Assigned: ['InProgress'],
+          InProgress: ['Resolved'],
+        },
+        Defect: {
+          New: ['Assigned'],
+          Assigned: ['InProgress'],
+          InProgress: ['Resolved'],
+        },
+      },
       highlightRejected: true,
       highlightReopened: true,
       reopenedAsAssigned: false,
