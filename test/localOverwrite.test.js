@@ -61,6 +61,24 @@ test('submit diff keeps remote values before local values by default', () => {
   assert.equal(title.after, 'Local title');
 });
 
+test('ignores trailing field whitespace returned by Redmine', () => {
+  const title = '[新追踪单查看器] 搜索运单名称中存在#号，找不到运单';
+  const diff = buildIssueDiff({
+    TITLE: title,
+    REDMINE_PROJECT: 'Project',
+    REDMINE_STATUS: 'Assigned',
+    REDMINE_PRIORITY: 'Normal',
+  }, 'Remote description', remoteIssue({
+    subject: `${title} `,
+  }), { target: 'local' });
+
+  assert.equal(
+    diff.fieldRows.find(row => row.label === 'title').changed,
+    false
+  );
+  assert.equal(diff.hasFieldChanges, false);
+});
+
 test('declining an overwrite leaves the local file unchanged', async t => {
   const { dir, filePath } = createLocalFile();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));

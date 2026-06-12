@@ -6,7 +6,7 @@ const CONTEXT_LINES = 2;
 
 /**
  * Display a before/after summary. target="server" previews submit;
- * target="local" previews fetch/sync overwrite.
+ * target="local" previews fetch/fetch-all overwrite.
  */
 function showIssueDiff(meta, description, serverIssue, options = {}) {
   const { fieldRows, descDiff, hasFieldChanges, hasDescChanges } =
@@ -74,10 +74,17 @@ function buildFieldDiff(meta, issue) {
     { label: 'category', local: meta.REDMINE_CATEGORY,    server: issue.category?.name      || '' },
   ];
 
-  return rows.map(r => ({ ...r, changed: (r.local || '') !== (r.server || '') }));
+  return rows.map(row => ({
+    ...row,
+    changed: normalizeField(row.local) !== normalizeField(row.server),
+  }));
 }
 
 // ── description diff ──────────────────────────────────────────────────────────
+
+function normalizeField(value) {
+  return String(value || '').normalize('NFC').trim();
+}
 
 function buildDescDiff(beforeDesc, afterDesc) {
   const beforeLines = normalizeDesc(beforeDesc).split('\n');

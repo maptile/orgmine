@@ -162,17 +162,17 @@ already exists, `fetch` compares it with Redmine, shows changes in the
 `local → remote` direction, and asks before overwriting. An unchanged file is
 not rewritten.
 
-### `sync` — download all issues
+### `fetch-all` — download all issues
 
 ```bash
-orgmine sync
-orgmine sync -p myproject
-orgmine sync -p myproject -v "Sprint 4"
-orgmine sync --force   # show diffs and accept all remote overwrites
+orgmine fetch-all
+orgmine fetch-all -p myproject
+orgmine fetch-all -p myproject -v "Sprint 4"
+orgmine fetch-all --force   # show diffs and accept all remote overwrites
 ```
 
 Downloads all issues (all statuses) to local org files. Existing files are
-compared with the complete remote issue. For each difference, `sync` pauses,
+compared with the complete remote issue. For each difference, `fetch-all` pauses,
 shows the `local → remote` changes, and asks before overwriting. Declining keeps
 that local file unchanged and continues with the remaining issues. `--force`
 still shows each difference but treats the command option as approval to

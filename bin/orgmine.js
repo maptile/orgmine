@@ -10,7 +10,7 @@ const { newIssue } = require('../src/commands/new');
 const { submit } = require('../src/commands/submit');
 const { fields } = require('../src/commands/fields');
 const { init } = require('../src/commands/init');
-const { sync } = require('../src/commands/sync');
+const { fetchAll } = require('../src/commands/fetchAll');
 const { refresh } = require('../src/commands/refresh');
 
 program
@@ -70,16 +70,16 @@ program
     await submit(fileOrId, config, options);
   });
 
-// ── sync ─────────────────────────────────────────────────────────────────────
+// ── fetch-all ────────────────────────────────────────────────────────────────
 program
-  .command('sync')
+  .command('fetch-all')
   .description('Download all issues from Redmine to local org files')
   .option('-p, --project <id_or_name>', 'Filter by project')
   .option('-v, --version <name>', 'Filter by version name (requires --project)')
   .option('--force', 'Show differences and accept all remote overwrites without prompting')
   .action(async (options) => {
     const config = getConfig(program);
-    await sync(config, options);
+    await fetchAll(config, options);
   });
 
 // ── refresh ───────────────────────────────────────────────────────────────────

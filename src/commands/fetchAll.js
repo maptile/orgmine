@@ -5,7 +5,7 @@ const { RedmineClient } = require('../lib/redmine');
 const { issueToOrg, writeOrgFile, issueFilePath, findFileById } = require('../lib/orgFile');
 const { reviewRemoteOverwrite } = require('../lib/localOverwrite');
 
-async function sync(config, options) {
+async function fetchAll(config, options) {
   const { project, version, force } = options;
 
   const client = new RedmineClient(config);
@@ -28,7 +28,7 @@ async function sync(config, options) {
     params.fixed_version_id = versionObj.id;
   }
 
-  process.stdout.write(chalk.dim('Fetching issue list…'));
+  process.stdout.write(chalk.cyan('Fetching issue list…'));
   let issues;
   try {
     issues = await client.getIssues(params);
@@ -53,6 +53,9 @@ async function sync(config, options) {
 
   for (let index = 0; index < issues.length; index++) {
     const listIssue = issues[index];
+    const progress = formatProgress(index + 1, issues.length, listIssue);
+    console.log(chalk.cyan(`${progress} Checking local file`));
+
     const newFilePath = issueFilePath(
       config.localDir,
       listIssue.project?.name || 'unknown',
@@ -71,6 +74,7 @@ async function sync(config, options) {
 
     const existingPath = matches[0] || null;
     if (!existingPath) {
+      console.log(chalk.cyan(`${progress} Saving new local file`));
       const { meta, description } = issueToOrg(listIssue, config.instanceName, config.markup);
       writeOrgFile(newFilePath, meta, description);
       saved++;
@@ -79,6 +83,7 @@ async function sync(config, options) {
 
     let issue;
     try {
+      console.log(chalk.cyan(`${progress} Fetching complete remote issue`));
       issue = await client.getIssue(listIssue.id);
     } catch (e) {
       console.error(chalk.red(`Could not fetch complete issue #${listIssue.id}: ${e.message}`));
@@ -87,6 +92,7 @@ async function sync(config, options) {
       continue;
     }
 
+    console.log(chalk.cyan(`${progress} Comparing local and remote content`));
     const result = await reviewRemoteOverwrite({
       filePath: existingPath,
       issue,
@@ -94,7 +100,7 @@ async function sync(config, options) {
       markup: config.markup,
       force,
       beforeDiff: () => {
-        console.log(chalk.yellow(`\n[${index + 1}/${issues.length}] #${issue.id} differs from local file:`));
+        console.log(chalk.yellow(`${progress} Review required: local file differs`));
         console.log(`  ${existingPath}`);
         console.log(chalk.dim('Changes below are local -> remote:'));
       },
@@ -110,4 +116,15 @@ async function sync(config, options) {
   ));
 }
 
-module.exports = { sync };
+function formatProgress(current, total, issue) {
+  const percent = Math.floor((current / total) * 100);
+  const subject = shorten(issue.subject || '', 50);
+  return `[${current}/${total} ${String(percent).padStart(3)}%] #${issue.id} ${subject}`;
+}
+
+function shorten(value, maxLength) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}…`;
+}
+
+module.exports = { fetchAll };
