@@ -13,6 +13,7 @@ const TEMPLATE = {
       apiKey: 'your-api-key-here',
       localDir: '~/redmine-issues/work',
       markup: 'textile',
+      editor: 'emacsclient -n',
       statusOrder: [
         'new', 'confirmed', 'assigned', 'InProgress', 'resolved',
         'verified', 'deferred', 'closed', 'rejected', 'cancelled', 'reopened',

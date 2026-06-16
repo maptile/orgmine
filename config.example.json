@@ -6,6 +6,7 @@
       "apiKey": "your-api-key-here",
       "localDir": "~/redmine-issues/work",
       "markup": "markdown",
+      "editor": "emacsclient -n",
       "statusOrder": ["new", "confirmed", "assigned", "InProgress", "resolved", "verified", "deferred", "closed", "rejected", "cancelled", "reopened"],
       "statusTransitions": {
         "Feature": {
@@ -37,7 +38,8 @@
       "apiKey": "another-api-key",
       "localDir": "~/redmine-issues/personal",
       "targetVersionCfId": 3,
-      "markup": "textile"
+      "markup": "textile",
+      "editor": "emacsclient -nc"
     }
   }
 }

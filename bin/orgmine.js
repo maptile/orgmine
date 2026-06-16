@@ -6,6 +6,7 @@ const chalk = require('chalk');
 const { loadConfig } = require('../src/lib/config');
 const { list } = require('../src/commands/list');
 const { fetch } = require('../src/commands/fetch');
+const { edit } = require('../src/commands/edit');
 const { newIssue } = require('../src/commands/new');
 const { submit } = require('../src/commands/submit');
 const { fields } = require('../src/commands/fields');
@@ -46,6 +47,15 @@ program
   .action(async (id) => {
     const config = getConfig(program);
     await fetch(id, config);
+  });
+
+// ── edit ─────────────────────────────────────────────────────────────────────
+program
+  .command('edit <id>')
+  .description('Fetch an issue, then open its local org file in your editor (no-conflict only)')
+  .action(async (id) => {
+    const config = getConfig(program);
+    await edit(id, config);
   });
 
 // ── new ──────────────────────────────────────────────────────────────────────

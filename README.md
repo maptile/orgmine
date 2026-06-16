@@ -73,6 +73,7 @@ orgmine init
       "apiKey": "your-api-key-here",
       "localDir": "~/redmine-issues/work",
       "markup": "textile",
+      "editor": "emacsclient -n",
       "statusOrder": ["new", "confirmed", "assigned", "InProgress", "resolved", "verified", "deferred", "closed", "rejected", "cancelled", "reopened"],
       "statusTransitions": {
         "Feature": {
@@ -109,6 +110,7 @@ orgmine init
 | `apiKey` | yes | Your Redmine API key (profile → API access key) |
 | `localDir` | yes | Directory where org files are stored |
 | `markup` | no | `textile` (default) or `markdown` |
+| `editor` | no | Command used by `edit` to open a file. Default `emacsclient -n` (opens a buffer in your running Emacs). The file path is appended as the last argument. Also settable via `$ORGMINE_EDITOR` / `$VISUAL` / `$EDITOR`. |
 | `statusOrder` | no | Display order for status groups in `list` |
 | `statusTransitions` | no | Allowed status transitions grouped by Redmine tracker name; used to perform multi-step status changes |
 | `highlightRejected` | no | Highlight rejected issues in red (default `false`) |
@@ -161,6 +163,28 @@ Saves to `<localDir>/<project>/<id>-<slug>.org`. If a local file for the issue
 already exists, `fetch` compares it with Redmine, shows changes in the
 `local → remote` direction, and asks before overwriting. An unchanged file is
 not rewritten.
+
+### `edit` — fetch, then open in your editor
+
+```bash
+orgmine edit 1965
+orgmine -i personal edit 99
+```
+
+Fetches the issue first, and only opens the editor when the local file is in
+sync with Redmine:
+
+- **No local file yet** — writes a fresh one and opens it.
+- **Local file matches remote** — opens it as-is.
+- **Local file differs from remote (conflict)** — does *not* open. It shows the
+  `local → remote` differences and exits, so you can resolve first with
+  `orgmine fetch <id>` (take remote) or `orgmine submit <id>` (push local).
+
+The editor command comes from the `editor` config field (default
+`emacsclient -n`), falling back to `$ORGMINE_EDITOR` / `$VISUAL` / `$EDITOR`.
+The default opens an org buffer in your already-running Emacs — make sure its
+server is started (see [Emacs setup](#emacs-setup)). For a headless Emacs
+daemon use `emacsclient -nc` to create a frame.
 
 ### `fetch-all` — download all issues
 
@@ -270,7 +294,14 @@ Add to your Emacs config:
 
 ```elisp
 (setq org-src-fontify-natively t)
+
+;; Start the Emacs server so `orgmine edit <id>` can open files in this
+;; running instance via `emacsclient -n`.
+(require 'server)
+(unless (server-running-p) (server-start))
 ```
+
+(Or run `M-x server-start` once per session.)
 
 Install `textile-mode` from MELPA if your Redmine uses Textile markup:
 
