@@ -2,9 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
-
-const CACHE_PATH = path.join(os.homedir(), '.config', 'orgmine', 'cache.json');
+const { CACHE_PATH } = require('./configPaths');
 const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function loadAll() {

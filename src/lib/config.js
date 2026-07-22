@@ -3,8 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-
-const CONFIG_PATH = path.join(os.homedir(), '.config', 'orgmine', 'config.json');
+const { CONFIG_PATH } = require('./configPaths');
 
 function loadConfigFile() {
   if (!fs.existsSync(CONFIG_PATH)) {

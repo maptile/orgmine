@@ -121,6 +121,10 @@ orgmine init
 
 All fields can be overridden per-command with CLI options (see below). If you supply `--server`, `--api-key`, and `--local-dir` on the command line, the config file is not required.
 
+Set `ORGMINE_CONFIG_DIR` to use a configuration directory other than
+`~/.config/orgmine`. Both `config.json` and `cache.json` are read from that
+directory.
+
 ## Commands
 
 ### `refresh` — update local lookup cache
@@ -130,7 +134,7 @@ orgmine refresh
 orgmine -i personal refresh
 ```
 
-Fetches statuses, priorities, projects, and per-project members and versions from Redmine and saves them to `~/.config/orgmine/cache.json`. Run this once after setup, and again whenever your Redmine configuration changes. `submit` warns you if the cache is older than one week.
+Fetches statuses, priorities, projects, and per-project members and versions from Redmine and saves them to `cache.json` in the active configuration directory. Run this once after setup, and again whenever your Redmine configuration changes. `submit` warns you if the cache is older than one week.
 
 ### `list` — browse issues grouped by status
 
@@ -146,6 +150,8 @@ Options:
 |---|---|
 | `-p, --project` | Filter by project name or identifier |
 | `-v, --version` | Filter by version name (requires `--project`) |
+| `--json` | Output the `todo-source` JSON protocol |
+| `--include-done` | Include completed and cancelled issues (`status_id=*`) |
 | `--highlight-rejected` / `--no-highlight-rejected` | Override config |
 | `--highlight-reopened` / `--no-highlight-reopened` | Override config |
 | `--reopen-as-assigned` / `--no-reopen-as-assigned` | Override config |

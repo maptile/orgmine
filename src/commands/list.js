@@ -4,6 +4,7 @@ const fs = require('fs');
 const chalk = require('chalk');
 const { RedmineClient } = require('../lib/redmine');
 const { issueFilePath } = require('../lib/orgFile');
+const { listTodo } = require('./listTodo');
 
 const DEFAULT_STATUS_ORDER = [
   'new', 'confirmed', 'assigned', 'InProgress', 'resolved',
@@ -11,12 +12,17 @@ const DEFAULT_STATUS_ORDER = [
 ];
 
 async function list(config, options) {
+  if (options.json) {
+    return listTodo(config, options);
+  }
+
   const { version, project } = options;
 
   const client = new RedmineClient(config);
 
   const params = {};
   if (project) params.project_id = project;
+  if (options.includeDone) params.status_id = '*';
 
   if (version) {
     if (!project) {

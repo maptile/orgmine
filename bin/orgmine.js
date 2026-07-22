@@ -29,6 +29,8 @@ program
   .description('List issues grouped by status')
   .option('-p, --project <id_or_name>', 'Filter by project')
   .option('-v, --version <name>', 'Filter by version name')
+  .option('--json', 'Output the todo-source JSON protocol')
+  .option('--include-done', 'Include completed and cancelled issues')
   .option('--highlight-rejected', 'Highlight rejected issues in red (overrides config)')
   .option('--no-highlight-rejected', 'Do not highlight rejected issues (overrides config)')
   .option('--highlight-reopened', 'Highlight reopened issues in red (overrides config)')
@@ -37,7 +39,10 @@ program
   .option('--no-reopen-as-assigned', 'Keep reopened as its own group (overrides config)')
   .action(async (options) => {
     const config = getConfig(program);
-    await list(config, options);
+    const exitCode = await list(config, options);
+    if (Number.isInteger(exitCode) && exitCode !== 0) {
+      process.exitCode = exitCode;
+    }
   });
 
 // ── fetch ────────────────────────────────────────────────────────────────────
@@ -104,7 +109,7 @@ program
 // ── init ─────────────────────────────────────────────────────────────────────
 program
   .command('init')
-  .description('Create the config file at ~/.config/orgmine/config.json (errors if it already exists)')
+  .description('Create the config file (uses ORGMINE_CONFIG_DIR when set)')
   .action(() => {
     init();
   });
