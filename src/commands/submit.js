@@ -4,7 +4,14 @@ const fs = require('fs');
 const path = require('path');
 const chalk = require('chalk');
 const { RedmineClient, ConflictError } = require('../lib/redmine');
-const { readOrgFile, writeOrgFile, orgToPayload, issueFilePath, findFileById } = require('../lib/orgFile');
+const {
+  readOrgFile,
+  writeOrgFile,
+  issueToOrg,
+  orgToPayload,
+  issueFilePath,
+  findFileById,
+} = require('../lib/orgFile');
 const { loadConfig } = require('../lib/config');
 const { promptMissingFields } = require('../lib/fieldSelector');
 const { ask } = require('../lib/prompt');
@@ -164,6 +171,26 @@ function findById(issueId, config) {
   return matches[0];
 }
 
+async function fetchIssueAfterSubmit(client, issueId) {
+  console.log(chalk.dim(`Fetching #${issueId} after submit…`));
+  try {
+    return await client.getIssue(issueId);
+  } catch (e) {
+    console.warn(chalk.yellow(
+      `Warning: issue #${issueId} was submitted, but its latest server copy ` +
+      `could not be fetched: ${e.message}`
+    ));
+    process.exitCode = 1;
+    return null;
+  }
+}
+
+function writeFetchedIssue(filePath, issue, config, markup) {
+  const fetched = issueToOrg(issue, config.instanceName, markup || config.markup);
+  writeOrgFile(filePath, fetched.meta, fetched.description);
+  console.log(chalk.dim(`Latest server copy saved to: ${filePath}`));
+}
+
 async function createIssue(client, config, filePath, meta, description, payload) {
   if (!payload.project_id && !meta.REDMINE_PROJECT) {
     console.error(chalk.red('#+REDMINE_PROJECT is required when creating a new issue'));
@@ -183,31 +210,39 @@ async function createIssue(client, config, filePath, meta, description, payload)
     process.exit(1);
   }
 
-  const newMeta = {
-    ...meta,
-    REDMINE_ID: String(created.id),
-    REDMINE_STATUS: created.status?.name || meta.REDMINE_STATUS,
-    REDMINE_STATUS_ID: String(created.status?.id || meta.REDMINE_STATUS_ID),
-    REDMINE_LOCK_VERSION: String(created.lock_version ?? 0),
-    REDMINE_CREATED_ON: created.created_on || '',
-    REDMINE_UPDATED_ON: created.updated_on || '',
-  };
+  const latest = await fetchIssueAfterSubmit(client, created.id);
+  const localIssue = latest || created;
 
   const newPath = issueFilePath(
     config.localDir,
-    created.project?.name || meta.REDMINE_PROJECT || 'unknown',
+    localIssue.project?.name || meta.REDMINE_PROJECT || 'unknown',
     created.id,
-    created.subject
+    localIssue.subject || meta.TITLE
   );
 
-  writeOrgFile(newPath, newMeta, description);
+  if (latest) {
+    writeFetchedIssue(newPath, latest, config, meta.REDMINE_MARKUP);
+  } else {
+    const newMeta = {
+      ...meta,
+      REDMINE_ID: String(created.id),
+      REDMINE_STATUS: created.status?.name || meta.REDMINE_STATUS,
+      REDMINE_STATUS_ID: String(created.status?.id || meta.REDMINE_STATUS_ID),
+      REDMINE_LOCK_VERSION: String(created.lock_version ?? 0),
+      REDMINE_CREATED_ON: created.created_on || '',
+      REDMINE_UPDATED_ON: created.updated_on || '',
+    };
+    writeOrgFile(newPath, newMeta, description);
+  }
 
   if (path.resolve(filePath) !== path.resolve(newPath)) {
     fs.unlinkSync(filePath);
     console.log(chalk.dim(`Draft moved to: ${newPath}`));
   }
 
-  console.log(chalk.green(`✓ Issue created: #${created.id} ${created.subject}`));
+  console.log(chalk.green(
+    `✓ Issue created: #${created.id} ${localIssue.subject || meta.TITLE}`
+  ));
   console.log(`  Local file: ${newPath}`);
 }
 
@@ -248,23 +283,12 @@ async function updateIssue(
     process.exit(1);
   }
 
-  // Refresh lock_version from the server, then do a single write that includes
-  // both the user's field selections and the updated server metadata.
-  let latest;
-  try {
-    latest = await client.getIssue(issueId);
-  } catch (_) {
-    console.warn(chalk.yellow('Warning: could not refresh lock_version — next submit may report a conflict'));
+  const latest = await fetchIssueAfterSubmit(client, issueId);
+  if (latest) {
+    writeFetchedIssue(filePath, latest, config, meta.REDMINE_MARKUP);
+  } else {
+    writeOrgFile(filePath, meta, description);
   }
-
-  writeOrgFile(filePath, {
-    ...meta,
-    ...(latest ? {
-      REDMINE_STATUS: latest.status?.name || meta.REDMINE_STATUS,
-      REDMINE_LOCK_VERSION: String(latest.lock_version ?? ''),
-      REDMINE_UPDATED_ON: latest.updated_on || '',
-    } : {}),
-  }, description);
 
   console.log(chalk.green(`✓ Issue #${issueId} updated`));
 }
